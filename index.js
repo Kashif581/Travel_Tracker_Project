@@ -20,6 +20,7 @@ app.use(express.static("public"));
 
 async function checkVisisted() {
   //QUERY TO DATBASE
+  // GRAPING ALL THE COUNTRIES CODE FROM VISITED_COUNTRIES TABLE
   const result = await db.query("SELECT country_code FROM visited_countries")
 
   let countries = [];
@@ -32,6 +33,7 @@ async function checkVisisted() {
 
 app.get("/", async (req, res) => {
   //Write your code here.
+   
   const countries = await checkVisisted();
   res.render("index.ejs", {countries: countries, total: countries.length});
 });
@@ -40,16 +42,29 @@ app.get("/", async (req, res) => {
 app.post("/add", async (req, res) =>{
   const input = req.body["country"];
   //console.log(country)
-  const result = await db.query("SELECT country_code FROM countries WHERE country_name = $1", [input]);
-
-  if (result.rows.length !== 0) {
-    const data = result.rows[0];
+  // QUERY TO DATABASE IF USER INPUT SOMTHING OTHER THEN NAME OF COUNTRY THEN GO TO CATCH BLOCK
+  try {
+    const result = await db.query("SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%';", [input.toLowerCase()]);
+    
+    // IF COUNTRY EXIST 
+    const data = result.rows[0]
     const countryCode = data.country_code;
+    //INSERT COUNTRY_CODE INTO VISITED_COUNTRIES TABLE IF ALREADY EXIST THEN GO CATCH BLOCK.
+    try {
+      await db.query("INSERT INTO visited_countries (country_code) VALUES $1", [countryCode]);
+      res.redirect("/")
+    } catch (err) {
+      const countries = await checkVisisted();
+      res.render("index.js", {countries: countries, total:contries.length, error: "Country has already been added, try again"})
+    }
 
-    await db.query("INSERT INTO visited_countries (country_code) VALUES ($1)", [countryCode]);
+  } catch (err) {
+    // PASSING ERROR IF USER INPUT SOMTHING OTHER THEN NAME OF COUNTRY
+    const countries = await checkVisisted();
+    res.render("index.js", {countries: countries, total: countries.length, error: "Country does not exist, try again"})
   }
-  res.redirect("/")
-})
+  
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
